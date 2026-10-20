@@ -1,0 +1,4 @@
+config modeswitch 'settings'
+	option mode 'auto'
+	option last_hw_mode '3g'
+	option active_mode '3g'

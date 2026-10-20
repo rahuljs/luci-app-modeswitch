@@ -1,0 +1,122 @@
+#!/bin/sh
+# /usr/sbin/mr3020-switch-handler
+# TP-Link TL-MR3020 Mode Switch Controller (Hardware + LuCI Software Override)
+
+get_hw_mode() {
+    SW1=$(grep "sw1" /sys/kernel/debug/gpio 2>/dev/null | awk '{print $NF}')
+    SW2=$(grep "sw2" /sys/kernel/debug/gpio 2>/dev/null | awk '{print $NF}')
+    
+    if [ "$SW1" = "hi" ] && [ "$SW2" = "hi" ]; then
+        echo "ap"
+    elif [ "$SW1" = "lo" ] && [ "$SW2" = "hi" ]; then
+        echo "wisp"
+    elif [ "$SW1" = "hi" ] && [ "$SW2" = "lo" ]; then
+        echo "3g"
+    else
+        echo "unknown"
+    fi
+}
+
+apply_mode() {
+    TARGET_MODE="$1"
+    CURRENT_ACTIVE=$(uci -q get modeswitch.settings.active_mode)
+    
+    if [ "$TARGET_MODE" = "$CURRENT_ACTIVE" ] && [ "$2" != "--force" ]; then
+        return 0
+    fi
+    
+    logger -t "switch-handler" "Applying mode: $TARGET_MODE (force=$2)"
+    uci set modeswitch.settings.active_mode="$TARGET_MODE"
+    uci commit modeswitch
+    echo "$TARGET_MODE" > /tmp/current_switch_mode
+
+    case "$TARGET_MODE" in
+        "ap")
+            uci set wireless.default_radio0.disabled='0'
+            uci set wireless.@wifi-iface[1].disabled='1'
+            uci commit wireless
+            wifi reload
+            killall usbipd 2>/dev/null
+            echo none > /sys/class/leds/tp-link:green:3g/trigger 2>/dev/null
+            echo 0 > /sys/class/leds/tp-link:green:3g/brightness 2>/dev/null
+            ;;
+
+        "wisp")
+            uci set wireless.default_radio0.disabled='0'
+            uci set wireless.@wifi-iface[1].disabled='0'
+            uci commit wireless
+            wifi reload
+            killall usbipd 2>/dev/null
+            echo timer > /sys/class/leds/tp-link:green:3g/trigger 2>/dev/null
+            echo 500 > /sys/class/leds/tp-link:green:3g/delay_on 2>/dev/null
+            echo 500 > /sys/class/leds/tp-link:green:3g/delay_off 2>/dev/null
+            ;;
+
+        "3g")
+            uci set wireless.default_radio0.disabled='0'
+            uci set wireless.@wifi-iface[1].disabled='0'
+            uci commit wireless
+            wifi reload
+            modprobe usbip-core 2>/dev/null
+            modprobe usbip-host 2>/dev/null
+            for dev in $(usbip list -l 2>/dev/null | grep 'busid' | awk '{print $3}'); do
+                if [ "$dev" != "1-1.4" ] && [ "$dev" != "1-1" ]; then
+                    printf "add %s" "$dev" > /sys/bus/usb/drivers/usbip-host/match_busid 2>/dev/null
+                fi
+            done
+            if ! pgrep -x usbipd >/dev/null; then
+                usbipd -D
+            fi
+            echo none > /sys/class/leds/tp-link:green:3g/trigger 2>/dev/null
+            echo 1 > /sys/class/leds/tp-link:green:3g/brightness 2>/dev/null
+            ;;
+    esac
+}
+
+HW_MODE=$(get_hw_mode)
+LAST_HW=$(uci -q get modeswitch.settings.last_hw_mode)
+CONF_MODE=$(uci -q get modeswitch.settings.mode)
+[ -z "$CONF_MODE" ] && CONF_MODE="auto"
+
+# Status query
+if [ "$1" = "--status" ]; then
+    ACTIVE=$(uci -q get modeswitch.settings.active_mode)
+    SW1=$(grep "sw1" /sys/kernel/debug/gpio 2>/dev/null | awk '{print $NF}')
+    SW2=$(grep "sw2" /sys/kernel/debug/gpio 2>/dev/null | awk '{print $NF}')
+    IS_OVERRIDDEN="false"
+    if [ "$CONF_MODE" != "auto" ] && [ "$CONF_MODE" != "$HW_MODE" ]; then
+        IS_OVERRIDDEN="true"
+    fi
+    printf '{"hardware_mode":"%s","sw1":"%s","sw2":"%s","configured_mode":"%s","active_mode":"%s","is_overridden":%s}\n' \
+        "$HW_MODE" "$SW1" "$SW2" "$CONF_MODE" "$ACTIVE" "$IS_OVERRIDDEN"
+    exit 0
+fi
+
+# Manual set command from LuCI
+if [ "$1" = "--set" ]; then
+    NEW_MODE="$2"
+    uci set modeswitch.settings.mode="$NEW_MODE"
+    uci commit modeswitch
+    if [ "$NEW_MODE" = "auto" ]; then
+        apply_mode "$HW_MODE" --force
+    else
+        apply_mode "$NEW_MODE" --force
+    fi
+    exit 0
+fi
+
+# Triggered by hardware event (BTN_0 / BTN_1) or boot
+if [ "$HW_MODE" != "$LAST_HW" ]; then
+    logger -t "switch-handler" "Hardware switch moved: $LAST_HW -> $HW_MODE (Overriding app selection)"
+    uci set modeswitch.settings.last_hw_mode="$HW_MODE"
+    uci set modeswitch.settings.mode="auto"
+    uci commit modeswitch
+    apply_mode "$HW_MODE" --force
+else
+    # Hardware did not move, respect configured mode (or apply hw if auto)
+    if [ "$CONF_MODE" = "auto" ]; then
+        apply_mode "$HW_MODE"
+    else
+        apply_mode "$CONF_MODE"
+    fi
+fi

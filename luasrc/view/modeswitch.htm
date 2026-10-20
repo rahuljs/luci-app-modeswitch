@@ -1,0 +1,320 @@
+<%+header%>
+
+<style type="text/css">
+.ms-container {
+    max-width: 900px;
+    margin: 15px auto;
+    font-family: inherit;
+}
+.ms-card {
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+}
+.ms-header {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 20px;
+    font-weight: 600;
+    color: #333;
+    border-bottom: 2px solid #0069d9;
+    padding-bottom: 8px;
+}
+.ms-status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+.ms-stat-box {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 15px;
+    text-align: center;
+}
+.ms-stat-title {
+    font-size: 13px;
+    color: #6c757d;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+.ms-stat-value {
+    font-size: 18px;
+    font-weight: 700;
+}
+.badge-3g { color: #fff; background-color: #6f42c1; padding: 4px 10px; border-radius: 12px; }
+.badge-wisp { color: #fff; background-color: #007bff; padding: 4px 10px; border-radius: 12px; }
+.badge-ap { color: #fff; background-color: #28a745; padding: 4px 10px; border-radius: 12px; }
+.badge-auto { color: #fff; background-color: #17a2b8; padding: 4px 10px; border-radius: 12px; }
+.badge-warn { color: #212529; background-color: #ffc107; padding: 4px 10px; border-radius: 12px; }
+
+.ms-hw-switch-track {
+    background: #e9ecef;
+    border-radius: 30px;
+    height: 48px;
+    display: flex;
+    position: relative;
+    margin: 25px 0 15px 0;
+    border: 2px solid #ced4da;
+    padding: 4px;
+}
+.ms-hw-pos {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    color: #495057;
+    border-radius: 24px;
+    transition: all 0.3s ease;
+    z-index: 1;
+}
+.ms-hw-pos.active {
+    background: #007bff;
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(0,123,255,0.4);
+}
+
+.ms-btn-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+.ms-mode-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 12px;
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+.ms-mode-btn:hover {
+    border-color: #007bff;
+    background: #f1f8ff;
+    transform: translateY(-2px);
+}
+.ms-mode-btn.selected {
+    border-color: #007bff;
+    background: #e7f1ff;
+    box-shadow: 0 0 0 3px rgba(0,123,255,0.25);
+}
+.ms-mode-btn strong {
+    font-size: 16px;
+    margin-bottom: 6px;
+}
+.ms-mode-btn span {
+    font-size: 12px;
+    color: #6c757d;
+}
+.ms-alert {
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-top: 15px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+.ms-alert-info {
+    background-color: #d1ecf1;
+    border: 1px solid #bee5eb;
+    color: #0c5460;
+}
+.ms-alert-warning {
+    background-color: #fff3cd;
+    border: 1px solid #ffeeba;
+    color: #856404;
+}
+</style>
+
+<div class="ms-container">
+    <div class="ms-card">
+        <h2 class="ms-header"><%=luci.i18n.translate("TL-MR3020 Hardware Switch & Mode Control")%></h2>
+        <p style="color: #666; font-size: 14px;">
+            <%=luci.i18n.translate("Monitor the physical 3-position slide switch on your TL-MR3020 and override the mode via software. Moving the hardware switch will immediately override any app selection.")%>
+        </p>
+
+        <!-- Status Cards -->
+        <div class="ms-status-grid">
+            <div class="ms-stat-box">
+                <div class="ms-stat-title"><%=luci.i18n.translate("Physical Switch Position")%></div>
+                <div class="ms-stat-value" id="val-hw-mode"><span class="badge-3g">...</span></div>
+                <small id="val-gpio" style="color: #888; display: block; margin-top: 5px;">GPIO18: - | GPIO20: -</small>
+            </div>
+            <div class="ms-stat-box">
+                <div class="ms-stat-title"><%=luci.i18n.translate("Active Operational Mode")%></div>
+                <div class="ms-stat-value" id="val-active-mode"><span class="badge-auto">...</span></div>
+                <small id="val-details" style="color: #888; display: block; margin-top: 5px;">...</small>
+            </div>
+            <div class="ms-stat-box">
+                <div class="ms-stat-title"><%=luci.i18n.translate("Control Authority")%></div>
+                <div class="ms-stat-value" id="val-authority"><span class="badge-auto"><%=luci.i18n.translate("Hardware")%></span></div>
+                <small id="val-auth-note" style="color: #888; display: block; margin-top: 5px;"><%=luci.i18n.translate("Following Slider")%></small>
+            </div>
+        </div>
+
+        <!-- Visual Switch Slider Representation -->
+        <div class="ms-stat-title" style="margin-bottom: 2px;"><%=luci.i18n.translate("Hardware Slider Visualizer")%></div>
+        <div class="ms-hw-switch-track">
+            <div class="ms-hw-pos" id="track-3g">3G / 4G (Left)</div>
+            <div class="ms-hw-pos" id="track-wisp">WISP (Middle)</div>
+            <div class="ms-hw-pos" id="track-ap">AP (Right)</div>
+        </div>
+
+        <!-- Mode Select Buttons -->
+        <h3 style="margin-top: 25px; margin-bottom: 10px; font-size: 16px;"><%=luci.i18n.translate("Choose Mode")%>:</h3>
+        <div class="ms-btn-grid">
+            <div class="ms-mode-btn" id="btn-auto" onclick="setMode('auto')">
+                <strong style="color: #17a2b8;"><%=luci.i18n.translate("Auto (Hardware)")%></strong>
+                <span><%=luci.i18n.translate("Follows physical slider switch")%></span>
+            </div>
+            <div class="ms-mode-btn" id="btn-ap" onclick="setMode('ap')">
+                <strong style="color: #28a745;"><%=luci.i18n.translate("Force AP Mode")%></strong>
+                <span><%=luci.i18n.translate("Pure Wi-Fi AP (192.168.1.1)")%></span>
+            </div>
+            <div class="ms-mode-btn" id="btn-wisp" onclick="setMode('wisp')">
+                <strong style="color: #007bff;"><%=luci.i18n.translate("Force WISP Mode")%></strong>
+                <span><%=luci.i18n.translate("Repeater (AP + Tulip WAN)")%></span>
+            </div>
+            <div class="ms-mode-btn" id="btn-3g" onclick="setMode('3g')">
+                <strong style="color: #6f42c1;"><%=luci.i18n.translate("Force 3G Mode")%></strong>
+                <span><%=luci.i18n.translate("USBIP & Storage Sharing")%></span>
+            </div>
+        </div>
+
+        <div id="override-alert" class="ms-alert ms-alert-warning" style="display: none;">
+            <strong><%=luci.i18n.translate("Software Override Active:")%></strong>
+            <%=luci.i18n.translate("The router is currently running in an overridden mode selected via this app. If you physically slide the switch on the router, hardware control will instantly take over and override this selection.")%>
+        </div>
+
+        <div class="ms-alert ms-alert-info">
+            <strong><%=luci.i18n.translate("Hardware Override Protection:")%></strong>
+            <%=luci.i18n.translate("Whenever you move the physical 3-position switch on the side of the TL-MR3020, it automatically triggers a kernel GPIO event that resets the control authority to the physical switch.")%>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript">
+(function() {
+    var statusUrl = '<%=luci.dispatcher.build_url("admin/system/modeswitch/status")%>';
+    var setUrl = '<%=luci.dispatcher.build_url("admin/system/modeswitch/set")%>';
+    var isUpdating = false;
+
+    window.setMode = function(mode) {
+        if (isUpdating) return;
+        isUpdating = true;
+        
+        // Highlight clicked button immediately
+        highlightBtn(mode);
+        
+        fetch(setUrl + '?mode=' + encodeURIComponent(mode))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                renderStatus(data);
+                isUpdating = false;
+            })
+            .catch(function(err) {
+                console.error("Failed to set mode:", err);
+                isUpdating = false;
+            });
+    };
+
+    function highlightBtn(mode) {
+        ['auto', 'ap', 'wisp', '3g'].forEach(function(m) {
+            var el = document.getElementById('btn-' + m);
+            if (el) {
+                if (m === mode) el.classList.add('selected');
+                else el.classList.remove('selected');
+            }
+        });
+    }
+
+    function renderStatus(data) {
+        if (!data || data.error) return;
+
+        // 1. Hardware position
+        var hwEl = document.getElementById('val-hw-mode');
+        var hwMode = data.hardware_mode || 'unknown';
+        var badgeClass = 'badge-auto';
+        if (hwMode === '3g') badgeClass = 'badge-3g';
+        else if (hwMode === 'wisp') badgeClass = 'badge-wisp';
+        else if (hwMode === 'ap') badgeClass = 'badge-ap';
+        hwEl.innerHTML = '<span class="' + badgeClass + '">' + hwMode.toUpperCase() + '</span>';
+
+        document.getElementById('val-gpio').textContent = 'GPIO18 (sw1): ' + (data.sw1 || '-') + ' | GPIO20 (sw2): ' + (data.sw2 || '-');
+
+        // Update track
+        ['3g', 'wisp', 'ap'].forEach(function(m) {
+            var trackEl = document.getElementById('track-' + m);
+            if (trackEl) {
+                if (m === hwMode) trackEl.classList.add('active');
+                else trackEl.classList.remove('active');
+            }
+        });
+
+        // 2. Active mode
+        var activeEl = document.getElementById('val-active-mode');
+        var activeMode = data.active_mode || hwMode;
+        var activeClass = 'badge-auto';
+        var desc = '';
+        if (activeMode === '3g') {
+            activeClass = 'badge-3g';
+            desc = '<%=luci.i18n.translate("USBIP Server & Storage ON")%>';
+        } else if (activeMode === 'wisp') {
+            activeClass = 'badge-wisp';
+            desc = '<%=luci.i18n.translate("Repeater (AP + Tulip WAN)")%>';
+        } else if (activeMode === 'ap') {
+            activeClass = 'badge-ap';
+            desc = '<%=luci.i18n.translate("Pure AP (LAN 192.168.1.1)")%>';
+        }
+        activeEl.innerHTML = '<span class="' + activeClass + '">' + activeMode.toUpperCase() + '</span>';
+        document.getElementById('val-details').textContent = desc;
+
+        // 3. Authority
+        var confMode = data.configured_mode || 'auto';
+        var isOverridden = data.is_overridden || false;
+        var authEl = document.getElementById('val-authority');
+        var authNote = document.getElementById('val-auth-note');
+        var alertEl = document.getElementById('override-alert');
+
+        if (isOverridden) {
+            authEl.innerHTML = '<span class="badge-warn"><%=luci.i18n.translate("Software Override")%></span>';
+            authNote.textContent = '<%=luci.i18n.translate("Forced via LuCI App")%>';
+            alertEl.style.display = 'block';
+            highlightBtn(confMode);
+        } else {
+            authEl.innerHTML = '<span class="badge-auto"><%=luci.i18n.translate("Hardware")%></span>';
+            authNote.textContent = '<%=luci.i18n.translate("Following Physical Slider")%>';
+            alertEl.style.display = 'none';
+            highlightBtn('auto');
+        }
+    }
+
+    function pollStatus() {
+        fetch(statusUrl)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                renderStatus(data);
+            })
+            .catch(function(e) {
+                // Ignore transient network hiccups
+            });
+    }
+
+    // Initial load
+    pollStatus();
+    // Live polling every 2.5 seconds
+    setInterval(pollStatus, 2500);
+})();
+</script>
+
+<%+footer%>

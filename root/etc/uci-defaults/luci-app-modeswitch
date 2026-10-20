@@ -1,0 +1,3 @@
+#!/bin/sh
+grep -q "mr3020-switch-handler" /etc/rc.local || sed -i '/exit 0/i /usr/sbin/mr3020-switch-handler &' /etc/rc.local
+exit 0
